@@ -1,7 +1,7 @@
 import casadi as ca
 
 class Model:
-    def __init__(self, t, x, u, z, p, delta, ode = None, alg = None, para = None, opt=None, stage_cost_func = None, terminal_cost_func = None):
+    def __init__(self, t, x, u, z, p, delta_t, ode = None, alg = None, para = None, opt=None, stage_cost_func = None, terminal_cost_func = None):
         '''
         Model initialization.
         
@@ -39,7 +39,7 @@ class Model:
         self.u = u
         self.z = z
         self.p = p
-        self.delta = delta
+        self.delta_t = delta_t
 
         # Get the length of state, input, algebraic variables and parameters
         self.Nt = t.shape[0]
@@ -81,10 +81,10 @@ class Model:
             self.ode_cont_model = self.ode_func(t, x, u, p)
             self.ode_cont_func = self.ode_func
             if self.opt['integrator'] == 'Eular':
-                self.ode_dis_model = self.integrator_eular(self.ode_func ,t ,x ,u, p, T)
+                self.ode_dis_model = self.integrator_eular(self.ode_func ,t ,x ,u, p, delta_t)
                 self.ode_dis_func = ca.Function("ode_dis_func", [t, x, u, p], [self.ode_dis_model])
             elif self.opt['integrator'] == 'RK4':
-                self.ode_dis_model = self.integrator_rk4(self.ode_func, t, x, u, p, T)
+                self.ode_dis_model = self.integrator_rk4(self.ode_func, t, x, u, p, delta_t)
                 self.ode_dis_func = ca.Function("ode_dis_func",[t, x, u, p],[self.ode_dis_model])
             else:
                 print("No such an integrator")
