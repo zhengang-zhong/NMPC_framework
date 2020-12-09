@@ -47,7 +47,7 @@ class Plot:
 
         tgrid = [delta_t * k for k in range(N_sim + 1)]
 
-        plt.figure(1)
+        plt.figure(1, figsize=(10, 20))
         plt.clf()
         for i in range (Nx):
             plt.subplot( str(Nx + Nu) + str(1) + str(i + 1) )
