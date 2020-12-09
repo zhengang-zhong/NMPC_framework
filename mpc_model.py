@@ -158,7 +158,7 @@ class Model:
         k1= f(t, x, u, p)
         x_next = x + delta_t * k1
         
-        return x_euler
+        return x_eular
 
     def integrator_rk4(self, f, t, x, u, p, delta_t):
         """
