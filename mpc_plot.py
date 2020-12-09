@@ -51,15 +51,16 @@ class Plot:
         plt.clf()
         for i in range (Nx):
             plt.subplot( str(Nx + Nu) + str(1) + str(i + 1) )
+            plt.grid()
             x_opt = self.x_opt[i::Nx]
             plt.plot(tgrid, x_opt, 'r')
             plt.ylabel('x' + str(i + 1))
 
         for i in range(Nu):
             plt.subplot( str(Nx + Nu) + str(1) + str(Nx + i + 1) )
+            plt.grid()
             u_opt = self.u_opt[i::Nu]
             plt.step(tgrid, ca.vertcat(ca.DM.nan(1), u_opt), 'r')
             plt.ylabel('u' + str(i + 1))
         plt.xlabel('t')
-        plt.grid()
         plt.show()
