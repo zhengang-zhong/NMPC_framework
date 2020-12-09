@@ -1,14 +1,15 @@
 import casadi as ca
 
 class MPC:
-    def __init__(self,model, N_pred):
+    def __init__(self,model, N_pred, solver_opt = None):
         self.model = model
         self.N_pred = N_pred
-        self.solver = self.multiple_shooting(model,N_pred)
+        self.solver = self.multiple_shooting(model,N_pred, solver_opt)
         self.type = 'ms'
+
     # def single_shooting(self, model, N_pred, solver_opt=None, g_model=None):
 
-    def multiple_shooting(self, model, N_pred, solver_opt=None, g_model=None):
+    def multiple_shooting(self, model, N_pred, solver_opt=None):
         '''
         Solve the ODE for the NLP solver with multiple shooting optimization formulation.
 
