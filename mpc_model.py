@@ -64,97 +64,102 @@ class Model:
         # Set the ode function
         self.ode = ode
         if self.opt['para'] == 'fixed':
-            self.ode_func = ca.Function("ode_func", [t, x, u, p], [ode(t, x, u, para)])
+            self.ode_func = ca.Function("ode_func", [t, x, u, p, z], [ode(t, x, u, para, z)])
         elif self.opt['para'] == 'variable':
-            self.ode_func = ca.Function("ode_func", [t, x, u, p], [ode(t, x, u, p)])
+            self.ode_func = ca.Function("ode_func", [t, x, u, p, z], [ode(t, x, u, p, z)])
         else:
             print("parameter type error")
 
         # Set the algebraic function and DAE function
-        if alg is not None:
-            self.alg = alg
+        self.alg = alg    #  If alg given is None, alg will not be handled in single shooting, multiple shooting, orthogonal collocation....
+        if alg is None:
+            def alg(t, x, u, p, z): return []
+        # print(ode(t, x, u, para, z))
+        if self.opt['para'] == 'fixed':
+            self.alg_func = ca.Function("alg_func", [t, x, u, p, z], [alg(t, x, u, para, z)])  # Algebraic function
+            self.dae_func = ca.Function("dae_func", [t, x, u, p, z],
+                                        [ca.vertcat(ode(t, x, u, para, z), alg(t, x, u, para, z))])  # DAE
+        elif self.opt['para'] == 'variable':
             self.alg_func = ca.Function("alg_func", [t, x, u, p, z], [alg(t, x, u, p, z)])  # Algebraic function
             self.dae_func = ca.Function("dae_func", [t, x, u, p, z],
-                                        [ca.vertcat(ode(t, x, u, p), alg(t, x, u, p, z))])  # DAE
-
+                                        [ca.vertcat(ode(t, x, u, para, z), alg(t, x, u, p, z))])  # DAE
+        else:
+            print("parameter type error")
+        # print(self.alg_func(t, x, u, p, z))
         # Discretize the ode model
         if self.opt['cont_or_dis'] == 'cont':
-            self.ode_cont_model = self.ode_func(t, x, u, p)
+            self.ode_cont_model = self.ode_func(t, x, u, p, z)
             self.ode_cont_func = self.ode_func
             if self.opt['integrator'] == 'Eular':
-                self.ode_dis_model = self.integrator_eular(self.ode_func, t, x, u, p, delta_t)
-                self.ode_dis_func = ca.Function("ode_dis_func", [t, x, u, p], [self.ode_dis_model])
+                self.ode_dis_model = self.integrator_eular(self.ode_func, t, x, u, p, z, delta_t)
+                self.ode_dis_func = ca.Function("ode_dis_func", [t, x, u, p, z], [self.ode_dis_model])
             elif self.opt['integrator'] == 'RK4':
-                self.ode_dis_model = self.integrator_rk4(self.ode_func, t, x, u, p, delta_t)
-                self.ode_dis_func = ca.Function("ode_dis_func", [t, x, u, p], [self.ode_dis_model])
+                self.ode_dis_model = self.integrator_rk4(self.ode_func, t, x, u, p, z, delta_t)
+                self.ode_dis_func = ca.Function("ode_dis_func", [t, x, u, p, z], [self.ode_dis_model])
             else:
                 print("No such an integrator")
         elif self.opt['cont_or_dis'] == 'dis':
-            self.ode_dis_model = self.ode_func(t, x, u, p)
+            self.ode_dis_model = self.ode_func(t, x, u, p, z)
             self.ode_dis_func = self.ode_func
         else:
             print("model type error")
-
-        if alg is None:
-            alg = ca.vertcat([])
-        self.alg = alg
 
         # Define a system integrator. The parameters are variables here.
         Np_real = len(para)
         para_var = ca.SX.sym('para_var', Np_real)
         para_stack = ca.vertcat(t, u, para_var)    #  t for time, u for input, para_var for system parameter.
-        dae = {'x': x, 'z': z, 'p': para_stack, 'ode': self.ode(t, x, u, para_var), 'alg': alg}
+        dae = {'x': x, 'z': z, 'p': para_stack, 'ode': ode(t, x, u, para_var,z), 'alg': alg(t, x, u, para_var,z)}
         integrator_opt = {'tf': delta_t}
         self.system_integrator = ca.integrator('F', 'idas', dae, integrator_opt)
 
         # Jacobian matrix of continuous system. Only time continuous system acquires jacobian of the continuous time system
         if self.opt['cont_or_dis'] == 'cont':
-            self.jacobian_cont_x = ca.Function('jacobian_cont_x', [t, x, u, p],
-                                               [ca.jacobian(self.ode_cont_func(t, x, u, p), x)])
-            self.jacobian_cont_u = ca.Function('jacobian_cont_u', [t, x, u, p],
-                                               [ca.jacobian(self.ode_cont_func(t, x, u, p), u)])
+            self.jacobian_cont_x = ca.Function('jacobian_cont_x', [t, x, u, p, z],
+                                               [ca.jacobian(self.ode_cont_func(t, x, u, p, z), x)])
+            self.jacobian_cont_u = ca.Function('jacobian_cont_u', [t, x, u, p, z],
+                                               [ca.jacobian(self.ode_cont_func(t, x, u, p, z), u)])
         # Jacobian matrix of discrete system
-        self.jacobian_disc_x = ca.Function('jacobian_disc_x', [t, x, u, p],
-                                           [ca.jacobian(self.ode_dis_func(t, x, u, p), x)])
-        self.jacobian_disc_u = ca.Function('jacobian_disc_u', [t, x, u, p],
-                                           [ca.jacobian(self.ode_dis_func(t, x, u, p), u)])
+        self.jacobian_disc_x = ca.Function('jacobian_disc_x', [t, x, u, p, z],
+                                           [ca.jacobian(self.ode_dis_func(t, x, u, p, z), x)])
+        self.jacobian_disc_u = ca.Function('jacobian_disc_u', [t, x, u, p, z],
+                                           [ca.jacobian(self.ode_dis_func(t, x, u, p, z), u)])
 
         # Define the integral function of the stage cost and terminal cost.
         if self.opt['cont_or_dis'] == 'cont':
-            self.stage_cost_cont = self.stage_cost_func(x, xr, u, ur)
+            self.stage_cost_cont = self.stage_cost_func(x, xr, u, ur, z)
             self.stage_cost_cont_func = self.stage_cost_func
 
             self.stage_cost_dis = self.integrator_stage_cost(self.ode_cont_func, self.stage_cost_cont_func, t, x, xr, u,
-                                                             ur, p, delta_t)
-            self.stage_cost_dis_func = ca.Function("stage_cost_dis_func", [t, x, xr, u, ur], [self.stage_cost_dis])
+                                                             ur, p, z, delta_t)
+            self.stage_cost_dis_func = ca.Function("stage_cost_dis_func", [t, x, xr, u, ur, z], [self.stage_cost_dis])
         elif self.opt['cont_or_dis'] == 'dis':
-            self.stage_cost_dis = self.stage_cost_func(x, xr, u, ur)
-            self.stage_cost_dis_func = ca.Function("stage_cost_dis_func", [t, x, xr, u, ur], [self.stage_cost_dis])
+            self.stage_cost_dis = self.stage_cost_func(x, xr, u, ur, z)
+            self.stage_cost_dis_func = ca.Function("stage_cost_dis_func", [t, x, xr, u, ur, z], [self.stage_cost_dis])
         else:
             print("model type error")
 
         self.u_change_cost_func = u_change_cost_func    #  # u_change_cost: extra cost term to penalize the input changes. The input should be a casadi function. (N_u, N_upast, N_ur -> R)
         self.terminal_cost = self.terminal_cost_func(x, xr)    #  Terminal cost
 
-    def integrator_stage_cost(self, f, l, t, x, xr, u, ur, p, delta_t):
+    def integrator_stage_cost(self, f, l, t, x, xr, u, ur, p, z, delta_t):
         '''
         This function calculates the integration of stage cost with RK4.
         '''
 
-        k1 = f(t, x, u, p)
-        k2 = f(t + delta_t / 2, x + delta_t / 2 * k1, u, p)
-        k3 = f(t + delta_t / 2, x + delta_t / 2 * k2, u, p)
-        k4 = f(t + delta_t, x + delta_t * k3, u, p)
+        k1 = f(t, x, u, p, z)
+        k2 = f(t + delta_t / 2, x + delta_t / 2 * k1, u, p, z)
+        k3 = f(t + delta_t / 2, x + delta_t / 2 * k2, u, p, z)
+        k4 = f(t + delta_t, x + delta_t * k3, u, p, z)
 
         Q = 0
-        k1_q = l(x, xr, u, ur)
-        k2_q = l(x + delta_t / 2 * k1, xr, u, ur)
-        k3_q = l(x + delta_t / 2 * k2, xr, u, ur)
-        k4_q = l(x + delta_t * k3, xr, u, ur)
+        k1_q = l(x, xr, u, ur, z)
+        k2_q = l(x + delta_t / 2 * k1, xr, u, ur, z)
+        k3_q = l(x + delta_t / 2 * k2, xr, u, ur, z)
+        k4_q = l(x + delta_t * k3, xr, u, ur, z)
         Q = Q + delta_t / 6 * (k1_q + 2 * k2_q + 2 * k3_q + k4_q)
         return Q
 
-    def integrator_eular(self, f, t, x, u, p, delta_t):
+    def integrator_eular(self, f, t, x, u, p, z, delta_t):
         """
         Explicit Eular solver using casadi.
 
@@ -167,12 +172,12 @@ class Model:
         Returns:
             x_next: Vector of next value in casadi DM
         """
-        k1 = f(t, x, u, p)
+        k1 = f(t, x, u, p, z)
         x_next = x + delta_t * k1
 
         return x_next
 
-    def integrator_rk4(self, f, t, x, u, p, delta_t):
+    def integrator_rk4(self, f, t, x, u, p, z, delta_t):
         """
         Runge-Kutta 4th order solver using casadi.
 
@@ -185,10 +190,10 @@ class Model:
         Returns:
             x_next: Vector of next value in casadi DM
         """
-        k1 = f(t, x, u, p)
-        k2 = f(t + delta_t / 2, x + delta_t / 2 * k1, u, p)
-        k3 = f(t + delta_t / 2, x + delta_t / 2 * k2, u, p)
-        k4 = f(t + delta_t, x + delta_t * k3, u, p)
+        k1 = f(t, x, u, p, z)
+        k2 = f(t + delta_t / 2, x + delta_t / 2 * k1, u, p, z)
+        k3 = f(t + delta_t / 2, x + delta_t / 2 * k2, u, p, z)
+        k4 = f(t + delta_t, x + delta_t * k3, u, p, z)
         x_next = x + delta_t / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
 
         return x_next

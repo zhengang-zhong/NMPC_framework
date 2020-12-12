@@ -6,7 +6,7 @@ from mpc_solver import MPC
 from mpc_plot import Plot
 import matplotlib.pyplot as plt
 
-def mobile_robot_ode(t, x, u, p = None):
+def mobile_robot_ode(t, x, u, p, z):
     """
     Mobile robot
     """
@@ -57,7 +57,7 @@ if __name__ == "__main__":
 
     para = []
 
-    mobile_robot_ode(t_SX, x_SX, u_SX, para)
+    mobile_robot_ode(t_SX, x_SX, u_SX, para, z_SX)
     lbx, ubx, lbg, ubg, p, x0 = set_constraint(Nx, Nu, N_pred)
 
     xr_SX = ca.SX.sym("xr_SX", Nx)
@@ -67,13 +67,25 @@ if __name__ == "__main__":
     Q_f = np.diag([100, 100, 100])
     stage_cost = (x_SX - xr_SX).T @ Q @ (x_SX - xr_SX) + (u_SX - ur_SX).T @ R @ (u_SX - ur_SX)    #  Lagrange term
     terminal_cost = (x_SX - xr_SX).T @ Q_f @ (x_SX - xr_SX)    #  Mayer term
-    stage_cost_func = ca.Function("stage_cost_func",[x_SX, xr_SX, u_SX, ur_SX], [stage_cost])
+    stage_cost_func = ca.Function("stage_cost_func",[x_SX, xr_SX, u_SX, ur_SX, z_SX], [stage_cost])
     terminal_cost_func = ca.Function("terminal_cost_func",[x_SX, xr_SX], [terminal_cost])
 
     model = Model(t_SX, x_SX, u_SX, z_SX, p_SX, delta_t, para=para, ode=mobile_robot_ode, alg=None, opt=None,
                   stage_cost_func=stage_cost_func, terminal_cost_func=terminal_cost_func)
 
-    mpc_solver = MPC(model, N_pred)
+    solver_opt = {}
+    solver_opt['print_time'] = False
+    solver_opt['ipopt'] = {
+        'max_iter': 500,
+        'print_level': 1,
+        'acceptable_tol': 1e-6,
+        'acceptable_obj_change_tol': 1e-6
+    }
+
+    opt = {}
+    opt['solver_opt'] = solver_opt
+
+    mpc_solver = MPC(model, N_pred, opt = opt)
     mpc_simulator = Simulator(model, mpc_solver, N_sim, lbx, ubx, lbg, ubg, p, x0)
 
     mpc_plot = Plot(mpc_simulator)

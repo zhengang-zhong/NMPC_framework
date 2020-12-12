@@ -33,6 +33,7 @@ class MPC:
         Nu = model.Nu
         Nt = model.Nt
         Np = model.Np
+        Nz = model.Nz
 
         delta_t = model.delta_t
 
@@ -47,19 +48,24 @@ class MPC:
         ur_var = ca.SX.sym('ur', Nu)
         p_var = ca.SX.sym('p', Np)
 
+
         xi_var = ca.SX.sym('x0', Nx)
+        zi_var = ca.SX.sym('z0', Nz)
 
         stage_cost_func = model.stage_cost_dis_func
         terminal_cost_func = model.terminal_cost_func
         fn = model.ode_dis_func
+        fa = model.alg_func
 
         OPT_variables += [xi_var]
+        if self.model.alg is not None:
+            OPT_variables += zi_var
         for i in range(N_pred):
             ui_var = ca.SX.sym('u_' + str(i), Nu)
             OPT_variables += [ui_var]
             # Integrate till the end of the interval
-            qi = stage_cost_func(ti_var, xi_var, xr_var, ui_var, ur_var)
-            xi_end_var = fn(ti_var, xi_var, ui_var, p_var)
+            qi = stage_cost_func(ti_var, xi_var, xr_var, ui_var, ur_var, zi_var)
+            xi_end_var = fn(ti_var, xi_var, ui_var, p_var, zi_var)
             obj += qi
             if self.model.u_change_cost_func is not None and i > 0:
                 u_current = ui_var
@@ -68,12 +74,13 @@ class MPC:
             # New NLP variable for state at end of interval
             ti_var += delta_t
             xi_var = ca.SX.sym('x_' + str(i + 1), Nx)
+            if self.model.alg is not None:
+                g += fa(ti_var, xi_var, ui_var, p_var, zi_var)
+                zi_var = ca.SX.sym('z_' + str(i + 1), Nz)
             OPT_variables += [xi_var]
-
             # Add equality constraint
             g += [xi_end_var - xi_var]
         obj += terminal_cost_func(xi_var, xr_var)
-
         p = [t_var, xr_var, ur_var]
 
         nlp_prob = {
@@ -82,9 +89,7 @@ class MPC:
             'g': ca.vertcat(*g),
             'p': ca.vertcat(*p)
         }
-
-        print(ca.vertcat(*OPT_variables).shape)
-
+        # print(obj)
         if 'solver_opt' not in opt:
             solver_opt = {}
             solver_opt['print_time'] = False

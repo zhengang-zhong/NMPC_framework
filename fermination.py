@@ -6,7 +6,7 @@ from mpc_solver import MPC
 from mpc_plot import Plot
 import matplotlib.pyplot as plt
 
-def fermination_ode(t, x, u, p):
+def fermination_ode(t, x, u, p, z):
     """
     Fermination model
     """
@@ -100,7 +100,7 @@ if __name__ == "__main__":
     para = [k_dc, k_dm, s_i]
 
 
-    fermination_ode(t_SX, x_SX, u_SX, para)
+    fermination_ode(t_SX, x_SX, u_SX, para, z_SX)
     lbx, ubx, lbg, ubg, p, x0 = set_constraint(Nx, Nu, N_pred)
 
 
@@ -111,7 +111,7 @@ if __name__ == "__main__":
     u_change = ca.fabs(u_SX - upast_SX )/delta_t
     u_change_cost = - u_change
     terminal_cost = 10 * x_SX[4] - 1.16 * ca.exp(48 * x_SX[5] - 66.77) -5.73 * ca.exp(11 * x_SX[6] - 11.51)    #  Mayer term
-    stage_cost_func = ca.Function("stage_cost_func",[x_SX, xr_SX, u_SX, ur_SX], [stage_cost])
+    stage_cost_func = ca.Function("stage_cost_func",[x_SX, xr_SX, u_SX, ur_SX, z_SX], [stage_cost])
     u_change_cost_func = ca.Function("u_change_cost_func",[u_SX, upast_SX, ur_SX], [u_change_cost])
     terminal_cost_func = ca.Function("terminal_cost_func",[x_SX, xr_SX], [terminal_cost])
 
@@ -131,7 +131,6 @@ if __name__ == "__main__":
 
     opt = {}
     opt['solver_opt'] = solver_opt
-    opt['u_change_cost'] = u_change_cost_func
 
     mpc_solver = MPC(model, N_pred, opt = opt)
     mpc_simulator = Simulator(model, mpc_solver, N_sim, lbx, ubx, lbg, ubg, p, x0)
