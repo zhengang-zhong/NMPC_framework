@@ -1,24 +1,26 @@
 import casadi as ca
 
 class MPC:
-    def __init__(self,model, N_pred, solver_opt = None):
+    def __init__(self, model, N_pred, opt = None):
+        if opt == None:
+            opt = {}
+
         self.model = model
         self.N_pred = N_pred
-        self.solver = self.multiple_shooting(model,N_pred, solver_opt)
+        self.solver = self.multiple_shooting(model,N_pred, opt)
         self.type = 'ms'
 
     # def single_shooting(self, model, N_pred, solver_opt=None, g_model=None):
 
-    def multiple_shooting(self, model, N_pred, solver_opt=None):
+    def multiple_shooting(self, model, N_pred, opt = None):
         '''
         Solve the ODE for the NLP solver with multiple shooting optimization formulation.
 
         Args:
             model: An instance of model class.
             N_pred: Number of control intervals.
-            solver_opt: Option dictionary for the solver.
-            g_model: Extra equality and inequality constraints.
-
+            opt: a dictionary contains some options.
+                1. solver_opt: Option dictionary for the solver.
         Returns:
             solver: A casadi NLP solver for the given control problem.
 
@@ -55,12 +57,14 @@ class MPC:
         for i in range(N_pred):
             ui_var = ca.SX.sym('u_' + str(i), Nu)
             OPT_variables += [ui_var]
-
             # Integrate till the end of the interval
             qi = stage_cost_func(ti_var, xi_var, xr_var, ui_var, ur_var)
             xi_end_var = fn(ti_var, xi_var, ui_var, p_var)
             obj += qi
-
+            if self.model.u_change_cost_func is not None and i > 0:
+                u_current = ui_var
+                u_last = OPT_variables[-3]
+                obj += self.model.u_change_cost_func(u_current, u_last, ur_var)
             # New NLP variable for state at end of interval
             ti_var += delta_t
             xi_var = ca.SX.sym('x_' + str(i + 1), Nx)
@@ -81,7 +85,7 @@ class MPC:
 
         print(ca.vertcat(*OPT_variables).shape)
 
-        if solver_opt is None:
+        if 'solver_opt' not in opt:
             solver_opt = {}
             solver_opt['print_time'] = False
             solver_opt['ipopt'] = {
@@ -90,7 +94,8 @@ class MPC:
                 'acceptable_tol': 1e-6,
                 'acceptable_obj_change_tol': 1e-6
             }
-
+        else:
+            solver_opt = opt['solver_opt']
         solver = ca.nlpsol("solver", "ipopt", nlp_prob, solver_opt)
 
         return solver

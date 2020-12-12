@@ -83,12 +83,13 @@ if __name__ == "__main__":
     Nz = 0
 
     delta_t = 1
-    N_pred = 50
-    N_sim = 100
+    N_pred = 160
+    N_sim = 160
 
     t_SX = ca.SX.sym("t_SX", Nt)
     x_SX = ca.SX.sym("x_SX", Nx)
     u_SX = ca.SX.sym("u_SX", Nu)
+    upast_SX = ca.SX.sym("upast_SX", Nu)
     p_SX = ca.SX.sym("p_SX", Np)
     z_SX = ca.SX.sym("z_SX", Nz)
 
@@ -106,13 +107,18 @@ if __name__ == "__main__":
     xr_SX = ca.SX.sym("xr_SX", Nx)
     ur_SX = ca.SX.sym("ur_SX", Nu)
 
-    stage_cost = 0.001**(-17) * ca.exp(2.31 * u_SX)   - 100 * (u_SX - ur_SX) #  Lagrange term
+    stage_cost = - 9.991**(-17) * ca.exp(2.31 * u_SX) #  Lagrange term
+    u_change = ca.fabs(u_SX - upast_SX )/delta_t
+    u_change_cost = - u_change
     terminal_cost = 10 * x_SX[4] - 1.16 * ca.exp(48 * x_SX[5] - 66.77) -5.73 * ca.exp(11 * x_SX[6] - 11.51)    #  Mayer term
     stage_cost_func = ca.Function("stage_cost_func",[x_SX, xr_SX, u_SX, ur_SX], [stage_cost])
+    u_change_cost_func = ca.Function("u_change_cost_func",[u_SX, upast_SX, ur_SX], [u_change_cost])
     terminal_cost_func = ca.Function("terminal_cost_func",[x_SX, xr_SX], [terminal_cost])
 
     model = Model(t_SX, x_SX, u_SX, z_SX, p_SX, delta_t, para=para, ode=fermination_ode, alg=None, opt=None,
-                  stage_cost_func=stage_cost_func, terminal_cost_func=terminal_cost_func)
+                  stage_cost_func=stage_cost_func, terminal_cost_func=terminal_cost_func, u_change_cost_func = u_change_cost_func)
+
+
 
     solver_opt = {}
     solver_opt['print_time'] = False
@@ -123,7 +129,11 @@ if __name__ == "__main__":
         'acceptable_obj_change_tol': 1e-6
     }
 
-    mpc_solver = MPC(model, N_pred, solver_opt = solver_opt)
+    opt = {}
+    opt['solver_opt'] = solver_opt
+    opt['u_change_cost'] = u_change_cost_func
+
+    mpc_solver = MPC(model, N_pred, opt = opt)
     mpc_simulator = Simulator(model, mpc_solver, N_sim, lbx, ubx, lbg, ubg, p, x0)
     mpc_plot = Plot(mpc_simulator)
     mpc_plot.plot_multi()

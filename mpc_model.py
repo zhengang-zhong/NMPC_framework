@@ -3,7 +3,7 @@ import casadi as ca
 
 class Model:
     def __init__(self, t, x, u, z, p, delta_t, ode=None, alg=None, para=None, opt=None, stage_cost_func=None,
-                 terminal_cost_func=None):
+                 terminal_cost_func=None, u_change_cost_func = None):
         '''
         Model initialization.
 
@@ -133,7 +133,8 @@ class Model:
         else:
             print("model type error")
 
-        self.terminal_cost = self.terminal_cost_func(x, xr)
+        self.u_change_cost_func = u_change_cost_func    #  # u_change_cost: extra cost term to penalize the input changes. The input should be a casadi function. (N_u, N_upast, N_ur -> R)
+        self.terminal_cost = self.terminal_cost_func(x, xr)    #  Terminal cost
 
     def integrator_stage_cost(self, f, l, t, x, xr, u, ur, p, delta_t):
         '''
