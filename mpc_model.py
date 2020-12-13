@@ -71,9 +71,10 @@ class Model:
             print("parameter type error")
 
         # Set the algebraic function and DAE function
+        self.alg = alg    #  If alg given is None, alg will not be handled in single shooting, multiple shooting, orthogonal collocation....
         if alg is None:
             def alg(t, x, u, p, z): return []
-        self.alg = alg    #  If alg given is None, alg will not be handled in single shooting, multiple shooting, orthogonal collocation....
+
 
         if self.opt['para'] == 'fixed':
             self.alg_func = ca.Function("alg_func", [t, x, u, p, z], [alg(t, x, u, para, z)])  # Algebraic function
